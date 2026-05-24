@@ -1,0 +1,336 @@
+:root {
+  color: #f6f2e8;
+  font-family:
+    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    sans-serif;
+  background: #10131a;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  overflow: hidden;
+}
+
+button {
+  border: 0;
+  font: inherit;
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: default;
+}
+
+#app {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 100vw;
+  height: 100vh;
+  background:
+    linear-gradient(180deg, rgb(185 77 93 / 0.12) 0%, transparent 42%),
+    linear-gradient(0deg, rgb(59 143 202 / 0.16) 0%, transparent 44%),
+    #111722;
+}
+
+#game-root {
+  width: min(100vw, calc(100vh * 16 / 9));
+  height: min(100vh, calc(100vw * 9 / 16));
+  box-shadow: 0 24px 80px rgb(0 0 0 / 0.42);
+}
+
+#game-root canvas {
+  display: block;
+}
+
+#hud {
+  position: fixed;
+  top: 14px;
+  left: 50%;
+  z-index: 2;
+  display: flex;
+  gap: 8px;
+  width: min(500px, calc(100vw - 24px));
+  transform: translateX(-50%);
+}
+
+.hud-group {
+  flex: 1;
+  min-width: 0;
+  border: 1px solid rgb(246 242 232 / 0.18);
+  border-radius: 6px;
+  padding: 0.52rem 0.75rem;
+  background: rgb(13 17 24 / 0.78);
+  backdrop-filter: blur(12px);
+}
+
+.hud-label {
+  display: block;
+  color: #b9c7d9;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.hud-group strong {
+  display: block;
+  margin-top: 0.1rem;
+  color: #ffffff;
+  font-size: 1.22rem;
+  line-height: 1;
+}
+
+#deck {
+  position: fixed;
+  right: 14px;
+  bottom: 14px;
+  left: 14px;
+  z-index: 3;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 150px));
+  justify-content: center;
+  gap: 8px;
+  pointer-events: none;
+}
+
+.card-button {
+  pointer-events: auto;
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: end;
+  min-height: 70px;
+  border: 1px solid rgb(246 242 232 / 0.2);
+  border-radius: 8px;
+  padding: 0.42rem 0.55rem 0.55rem;
+  color: #f9fbff;
+  background: rgb(18 22 31 / 0.86);
+  box-shadow: 0 14px 36px rgb(0 0 0 / 0.28);
+  backdrop-filter: blur(14px);
+  transition:
+    border-color 140ms ease,
+    opacity 140ms ease,
+    transform 140ms ease;
+}
+
+.card-art {
+  position: absolute;
+  top: 5px;
+  bottom: 5px;
+  left: 7px;
+  align-self: stretch;
+  width: 46px;
+  min-width: 0;
+  border-radius: 6px;
+  background-position: center bottom;
+  background-repeat: no-repeat;
+  background-size: 118%;
+  opacity: 0.9;
+  animation: cardPortraitFloat 1.9s ease-in-out infinite;
+}
+
+.card-button span {
+  position: relative;
+  z-index: 1;
+  overflow: hidden;
+  padding-left: 42px;
+  font-size: 0.8rem;
+  font-weight: 850;
+  line-height: 1.05;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.card-button .card-art {
+  overflow: visible;
+  z-index: 0;
+  padding-left: 0;
+}
+
+.card-button strong {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  color: #12161d;
+  background: #d7b8ff;
+  font-size: 0.95rem;
+}
+
+.card-button.is-selected {
+  border-color: #ffd166;
+  outline: 2px solid rgb(255 209 102 / 0.42);
+  animation: selectedCardPulse 1.35s ease-in-out infinite;
+}
+
+.card-button:disabled {
+  opacity: 0.44;
+}
+
+.card-button:not(:disabled):hover {
+  transform: translateY(-3px);
+}
+
+@keyframes selectedCardPulse {
+  0%,
+  100% {
+    box-shadow: 0 14px 36px rgb(0 0 0 / 0.28), 0 0 0 rgb(255 209 102 / 0);
+  }
+
+  50% {
+    box-shadow: 0 16px 40px rgb(0 0 0 / 0.32), 0 0 18px rgb(255 209 102 / 0.36);
+  }
+}
+
+@keyframes cardPortraitFloat {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+
+  50% {
+    transform: translateY(-2px);
+  }
+}
+
+#message {
+  position: fixed;
+  inset: auto 18px 98px;
+  z-index: 4;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px 18px;
+  align-items: center;
+  max-width: 780px;
+  margin: 0 auto;
+  border: 1px solid rgb(246 242 232 / 0.18);
+  border-radius: 8px;
+  padding: 1rem;
+  background: rgb(12 15 20 / 0.9);
+  backdrop-filter: blur(16px);
+  transition:
+    opacity 150ms ease,
+    transform 150ms ease;
+}
+
+#message h1,
+#message p {
+  margin: 0;
+}
+
+#message h1 {
+  color: #ffffff;
+  font-size: clamp(1.35rem, 4vw, 2.45rem);
+  line-height: 1;
+}
+
+#message p {
+  grid-column: 1;
+  color: #d8e0ea;
+  line-height: 1.45;
+}
+
+#message button {
+  grid-row: 1 / span 2;
+  grid-column: 2;
+  min-width: 130px;
+  border-radius: 6px;
+  padding: 0.8rem 1.15rem;
+  color: #12161d;
+  background: #ffd166;
+  font-weight: 850;
+  box-shadow: 0 10px 30px rgb(0 0 0 / 0.24);
+}
+
+#message button:hover {
+  background: #ffe08f;
+}
+
+#message.is-hidden {
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(8px);
+}
+
+@media (max-width: 640px) {
+  #hud {
+    top: 10px;
+    gap: 6px;
+  }
+
+  .hud-group {
+    padding: 0.45rem 0.5rem;
+  }
+
+  .hud-label {
+    font-size: 0.58rem;
+  }
+
+  .hud-group strong {
+    font-size: 1rem;
+  }
+
+  #deck {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 6px;
+    right: 8px;
+    bottom: 8px;
+    left: 8px;
+  }
+
+  .card-button {
+    grid-template-columns: 1fr auto;
+    min-height: 56px;
+    padding: 0.5rem;
+  }
+
+  .card-art {
+    width: 34px;
+    opacity: 0.35;
+  }
+
+  .card-button span {
+    padding-left: 0;
+    font-size: 0.66rem;
+    text-shadow: 0 1px 6px rgb(0 0 0 / 0.9);
+  }
+
+  .card-button span {
+    font-size: 0.72rem;
+  }
+
+  .card-button strong {
+    width: 24px;
+    height: 24px;
+    font-size: 0.82rem;
+  }
+
+  #message {
+    grid-template-columns: 1fr;
+    gap: 10px;
+    inset: auto 12px 82px;
+  }
+
+  #message button,
+  #message p {
+    grid-column: auto;
+  }
+
+  #message button {
+    grid-row: auto;
+    width: 100%;
+  }
+}

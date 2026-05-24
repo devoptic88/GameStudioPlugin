@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Crownfall Tactics</title>
+  </head>
+  <body>
+    <div id="app">
+      <div id="game-root"></div>
+      <section id="hud" aria-label="Battle status">
+        <div class="hud-group">
+          <span class="hud-label">Elixir</span>
+          <strong id="elixir">5</strong>
+        </div>
+        <div class="hud-group">
+          <span class="hud-label">Time</span>
+          <strong id="time">3:00</strong>
+        </div>
+        <div class="hud-group">
+          <span class="hud-label">Enemy</span>
+          <strong id="enemy-elixir">5</strong>
+        </div>
+      </section>
+      <section id="deck" aria-label="Battle deck">
+        <button class="card-button is-selected" data-card="vanguard" type="button">
+          <span class="card-art" aria-hidden="true"></span>
+          <span>Vanguard</span>
+          <strong>3</strong>
+        </button>
+        <button class="card-button" data-card="ranger" type="button">
+          <span class="card-art" aria-hidden="true"></span>
+          <span>Ranger</span>
+          <strong>4</strong>
+        </button>
+        <button class="card-button" data-card="brute" type="button">
+          <span class="card-art" aria-hidden="true"></span>
+          <span>Brute</span>
+          <strong>5</strong>
+        </button>
+        <button class="card-button" data-card="spark" type="button">
+          <span class="card-art" aria-hidden="true"></span>
+          <span>Spark</span>
+          <strong>2</strong>
+        </button>
+      </section>
+      <div id="message" role="status" aria-live="polite">
+        <h1>Crownfall Tactics</h1>
+        <p>Pick a card, deploy on your half, and crack the rival citadel before time expires.</p>
+        <button id="start-button" type="button">Start Battle</button>
+      </div>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
