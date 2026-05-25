@@ -30,6 +30,7 @@ type ServerMessage =
 export class NetworkClient {
   private socket?: WebSocket;
   private online = false;
+  private connectionHadError = false;
 
   connect(): void {
     if (this.socket && this.socket.readyState <= WebSocket.OPEN) {
@@ -44,6 +45,7 @@ export class NetworkClient {
     }
 
     this.setStatus('Connecting...');
+    this.connectionHadError = false;
     try {
       this.socket = new WebSocket(url);
     } catch {
@@ -55,10 +57,11 @@ export class NetworkClient {
     this.socket.addEventListener('message', (event) => this.handleMessage(event.data));
     this.socket.addEventListener('close', () => {
       this.online = false;
-      this.setStatus('Offline');
+      this.setStatus(this.connectionHadError ? 'Server offline' : 'Offline');
       window.dispatchEvent(new CustomEvent('crownfall:network-offline'));
     });
     this.socket.addEventListener('error', () => {
+      this.connectionHadError = true;
       this.setStatus('Server offline');
     });
   }
@@ -91,6 +94,10 @@ export class NetworkClient {
   }
 
   private defaultServerUrl(): string {
+    if (window.location.protocol === 'https:') {
+      return 'wss://crownfall-ws.15.204.67.75.sslip.io';
+    }
+
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     return `${protocol}//${window.location.hostname}:8787`;
   }
