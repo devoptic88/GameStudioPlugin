@@ -15,6 +15,7 @@ export class BattleState {
   private elixir = 5;
   private enemyElixir = 5;
   private status: BattleStatus = 'ready';
+  private infiniteElixir = false;
 
   start(): BattleSnapshot {
     this.elapsed = 0;
@@ -30,7 +31,7 @@ export class BattleState {
     }
 
     this.elapsed += deltaSeconds;
-    this.elixir = Math.min(this.maxElixir, this.elixir + deltaSeconds * this.elixirPerSecond);
+    this.elixir = this.infiniteElixir ? this.maxElixir : Math.min(this.maxElixir, this.elixir + deltaSeconds * this.elixirPerSecond);
     this.enemyElixir = Math.min(this.maxElixir, this.enemyElixir + deltaSeconds * this.elixirPerSecond * 0.9);
 
     if (this.elapsed >= this.matchLength) {
@@ -46,7 +47,7 @@ export class BattleState {
 
   spend(cost: number): BattleSnapshot {
     if (this.canSpend(cost)) {
-      this.elixir -= cost;
+      this.elixir = this.infiniteElixir ? this.maxElixir : this.elixir - cost;
     }
 
     return this.snapshot();
@@ -62,6 +63,28 @@ export class BattleState {
     }
 
     return this.snapshot();
+  }
+
+  addElixir(amount: number): BattleSnapshot {
+    this.elixir = Math.min(this.maxElixir, this.elixir + amount);
+    return this.snapshot();
+  }
+
+  addEnemyElixir(amount: number): BattleSnapshot {
+    this.enemyElixir = Math.min(this.maxElixir, this.enemyElixir + amount);
+    return this.snapshot();
+  }
+
+  setInfiniteElixir(enabled: boolean): BattleSnapshot {
+    this.infiniteElixir = enabled;
+    if (enabled) {
+      this.elixir = this.maxElixir;
+    }
+    return this.snapshot();
+  }
+
+  hasInfiniteElixir(): boolean {
+    return this.infiniteElixir;
   }
 
   finish(status: BattleStatus): BattleSnapshot {

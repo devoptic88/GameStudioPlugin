@@ -1,13 +1,13 @@
-import type { CardId } from '../scenes/GameScene';
+import { CARD_BY_ID, type CardArchetype, type CardId } from '../data/cards';
 
-const SPAWN_NOTES: Record<CardId, number[]> = {
+const SPAWN_NOTES: Record<CardArchetype, number[]> = {
   vanguard: [196, 247, 294],
   ranger: [330, 392, 494],
   brute: [98, 123, 147],
   spark: [523, 659, 784],
 };
 
-const HIT_NOTES: Record<CardId, { frequency: number; type: OscillatorType; duration: number }> = {
+const HIT_NOTES: Record<CardArchetype, { frequency: number; type: OscillatorType; duration: number }> = {
   vanguard: { frequency: 180, type: 'square', duration: 0.12 },
   ranger: { frequency: 620, type: 'triangle', duration: 0.08 },
   brute: { frequency: 82, type: 'sawtooth', duration: 0.18 },
@@ -47,18 +47,19 @@ export class AudioDirector {
     }
 
     const now = this.context.currentTime;
-    SPAWN_NOTES[card].forEach((frequency, index) => {
+    const archetype = CARD_BY_ID[card].archetype;
+    SPAWN_NOTES[archetype].forEach((frequency, index) => {
       this.playTone({
         frequency,
         startTime: now + index * 0.045,
-        duration: card === 'brute' ? 0.18 : 0.13,
-        volume: card === 'brute' ? 0.11 : 0.075,
-        type: card === 'spark' ? 'sine' : card === 'ranger' ? 'triangle' : 'square',
+        duration: archetype === 'brute' ? 0.18 : 0.13,
+        volume: archetype === 'brute' ? 0.11 : 0.075,
+        type: archetype === 'spark' ? 'sine' : archetype === 'ranger' ? 'triangle' : 'square',
         destination: this.effectsBus!,
       });
     });
 
-    if (card === 'brute') {
+    if (archetype === 'brute') {
       this.playNoise(now, 0.18, 0.08, 900);
     }
   }
@@ -69,19 +70,20 @@ export class AudioDirector {
       return;
     }
 
-    const hit = HIT_NOTES[card];
+    const archetype = CARD_BY_ID[card].archetype;
+    const hit = HIT_NOTES[archetype];
     const now = this.context.currentTime;
     this.playTone({
       frequency: hit.frequency,
       startTime: now,
       duration: hit.duration,
-      volume: card === 'brute' ? 0.14 : 0.09,
+      volume: archetype === 'brute' ? 0.14 : 0.09,
       type: hit.type,
       destination: this.effectsBus,
-      endFrequency: card === 'spark' ? hit.frequency * 1.8 : hit.frequency * 0.72,
+      endFrequency: archetype === 'spark' ? hit.frequency * 1.8 : hit.frequency * 0.72,
     });
 
-    if (card === 'ranger') {
+    if (archetype === 'ranger') {
       this.playTone({
         frequency: 1240,
         startTime: now + 0.03,
@@ -92,8 +94,8 @@ export class AudioDirector {
       });
     }
 
-    if (card === 'brute' || card === 'vanguard') {
-      this.playNoise(now, card === 'brute' ? 0.22 : 0.1, card === 'brute' ? 0.1 : 0.045, card === 'brute' ? 520 : 1200);
+    if (archetype === 'brute' || archetype === 'vanguard') {
+      this.playNoise(now, archetype === 'brute' ? 0.22 : 0.1, archetype === 'brute' ? 0.1 : 0.045, archetype === 'brute' ? 520 : 1200);
     }
   }
 

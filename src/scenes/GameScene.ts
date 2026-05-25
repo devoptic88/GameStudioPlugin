@@ -1,15 +1,20 @@
 import Phaser from 'phaser';
+import {
+  CARD_BY_ID,
+  CARD_CATALOG,
+  getCardBackTexture,
+  getCardBackUrl,
+  getCardFrontTexture,
+  getCardFrontUrl,
+  getSavedDeck,
+  type CardDefinition,
+  type CardId,
+  type MovementType,
+} from '../data/cards';
 import { AudioDirector } from '../systems/audio';
 import { BattleSnapshot, BattleState, BattleStatus } from '../systems/gameState';
-import bruteBackUrl from '../assets/characters/brute-back.png';
-import bruteUrl from '../assets/characters/brute.png';
+import type { NetworkDeployPayload } from '../systems/network';
 import arenaUrl from '../assets/environment/arena-epic.png';
-import rangerBackUrl from '../assets/characters/ranger-back.png';
-import rangerUrl from '../assets/characters/ranger.png';
-import sparkBackUrl from '../assets/characters/spark-back.png';
-import sparkUrl from '../assets/characters/spark.png';
-import vanguardBackUrl from '../assets/characters/vanguard-back.png';
-import vanguardUrl from '../assets/characters/vanguard.png';
 
 const WORLD_WIDTH = 960;
 const WORLD_HEIGHT = 540;
@@ -20,25 +25,6 @@ const BRIDGE_HALF_WIDTH = 48;
 const BRIDGE_CLEARANCE = 32;
 
 type Side = 'player' | 'enemy';
-export type CardId = 'vanguard' | 'ranger' | 'brute' | 'spark';
-type MovementType = 'ground' | 'flying';
-
-interface UnitStats {
-  key: string;
-  name: string;
-  cost: number;
-  hp: number;
-  damage: number;
-  range: number;
-  speed: number;
-  cooldown: number;
-  frontTexture: string;
-  backTexture: string;
-  spriteSize: number;
-  artUrl: string;
-  backArtUrl: string;
-  movement: MovementType;
-}
 
 interface BattleUnit {
   id: number;
@@ -74,76 +60,11 @@ interface Tower {
   hpText: Phaser.GameObjects.Text;
 }
 
-const CARD_STATS: Record<CardId, UnitStats> = {
-  vanguard: {
-    key: 'vanguard',
-    name: 'Vanguard',
-    cost: 3,
-    hp: 130,
-    damage: 18,
-    range: 28,
-    speed: 58,
-    cooldown: 850,
-    frontTexture: 'unit-vanguard-front',
-    backTexture: 'unit-vanguard-back',
-    spriteSize: 92,
-    artUrl: vanguardUrl,
-    backArtUrl: vanguardBackUrl,
-    movement: 'ground',
-  },
-  ranger: {
-    key: 'ranger',
-    name: 'Ranger',
-    cost: 4,
-    hp: 80,
-    damage: 15,
-    range: 150,
-    speed: 50,
-    cooldown: 700,
-    frontTexture: 'unit-ranger-front',
-    backTexture: 'unit-ranger-back',
-    spriteSize: 86,
-    artUrl: rangerUrl,
-    backArtUrl: rangerBackUrl,
-    movement: 'ground',
-  },
-  brute: {
-    key: 'brute',
-    name: 'Brute',
-    cost: 5,
-    hp: 230,
-    damage: 32,
-    range: 32,
-    speed: 38,
-    cooldown: 1100,
-    frontTexture: 'unit-brute-front',
-    backTexture: 'unit-brute-back',
-    spriteSize: 108,
-    artUrl: bruteUrl,
-    backArtUrl: bruteBackUrl,
-    movement: 'ground',
-  },
-  spark: {
-    key: 'spark',
-    name: 'Spark',
-    cost: 2,
-    hp: 58,
-    damage: 20,
-    range: 95,
-    speed: 85,
-    cooldown: 780,
-    frontTexture: 'unit-spark-front',
-    backTexture: 'unit-spark-back',
-    spriteSize: 88,
-    artUrl: sparkUrl,
-    backArtUrl: sparkBackUrl,
-    movement: 'flying',
-  },
-};
-
 export class GameScene extends Phaser.Scene {
   private state = new BattleState();
-  private selectedCard: CardId = 'vanguard';
+  private selectedCard: CardId = getSavedDeck()[0];
+  private activeDeck: CardId[] = getSavedDeck();
+  private readonly handSize = 4;
   private status: BattleStatus = 'ready';
   private units: BattleUnit[] = [];
   private towers: Tower[] = [];
@@ -151,6 +72,7 @@ export class GameScene extends Phaser.Scene {
   private nextUnitId = 1;
   private enemyPlanAt = 0;
   private notice?: Phaser.GameObjects.Text;
+  private multiplayer = false;
 
   constructor() {
     super('game');
@@ -158,14 +80,10 @@ export class GameScene extends Phaser.Scene {
 
   preload(): void {
     this.load.image('arena-epic', arenaUrl);
-    this.load.image('unit-vanguard-front', vanguardUrl);
-    this.load.image('unit-vanguard-back', vanguardBackUrl);
-    this.load.image('unit-ranger-front', rangerUrl);
-    this.load.image('unit-ranger-back', rangerBackUrl);
-    this.load.image('unit-brute-front', bruteUrl);
-    this.load.image('unit-brute-back', bruteBackUrl);
-    this.load.image('unit-spark-front', sparkUrl);
-    this.load.image('unit-spark-back', sparkBackUrl);
+    CARD_CATALOG.forEach((card) => {
+      this.load.image(getCardFrontTexture(card.id), getCardFrontUrl(card.id));
+      this.load.image(getCardBackTexture(card.id), getCardBackUrl(card.id));
+    });
   }
 
   create(): void {
@@ -176,6 +94,12 @@ export class GameScene extends Phaser.Scene {
     document.addEventListener('pointerdown', (event) => this.tryDeployFromCanvas(event));
     document.addEventListener('mousedown', (event) => this.tryDeployFromCanvas(event));
     document.addEventListener('keydown', (event) => this.handleKeyboard(event));
+    window.addEventListener('crownfall:dev-action', (event) => this.handleDevAction((event as CustomEvent<string>).detail));
+    window.addEventListener('crownfall:multiplayer-start', () => this.startMultiplayerBattle());
+    window.addEventListener('crownfall:multiplayer-stop', () => this.stopMultiplayerBattle());
+    window.addEventListener('crownfall:network-deploy-remote', (event) =>
+      this.deployRemoteCard((event as CustomEvent<NetworkDeployPayload>).detail),
+    );
     this.notice = this.add
       .text(WORLD_WIDTH / 2, RIVER_Y + 4, 'Deploy on your half', {
         color: '#f6f2e8',
@@ -187,6 +111,7 @@ export class GameScene extends Phaser.Scene {
       .setDepth(8)
       .setAlpha(0);
     this.updateHud(this.state.snapshot());
+    this.publishDevState();
   }
 
   update(time: number, delta: number): void {
@@ -197,15 +122,22 @@ export class GameScene extends Phaser.Scene {
     const deltaSeconds = delta / 1000;
     const snapshot = this.state.update(deltaSeconds);
     this.updateHud(snapshot);
-    this.planEnemyDeploy(time);
+    if (!this.multiplayer) {
+      this.planEnemyDeploy(time);
+    }
     this.updateUnits(time, deltaSeconds);
     this.updateTowers(time);
     this.cleanupDefeated();
     this.checkBattleEnd(snapshot.status);
+    this.publishDevState();
   }
 
   private startBattle(): void {
+    this.multiplayer = false;
     void this.audio.startMusic();
+    this.activeDeck = getSavedDeck();
+    this.selectedCard = this.activeDeck.includes(this.selectedCard) ? this.selectedCard : this.activeDeck[0];
+    this.renderBattleDeck();
     this.clearUnits();
     this.towers.forEach((tower) => {
       tower.hp = tower.maxHp;
@@ -217,6 +149,37 @@ export class GameScene extends Phaser.Scene {
     this.status = 'playing';
     this.setMessageVisible(false);
     this.updateHud(this.state.start());
+    this.publishDevState();
+  }
+
+  private startMultiplayerBattle(): void {
+    this.multiplayer = true;
+    void this.audio.startMusic();
+    this.activeDeck = getSavedDeck();
+    this.selectedCard = this.activeDeck[0];
+    this.renderBattleDeck();
+    this.clearUnits();
+    this.towers.forEach((tower) => {
+      tower.hp = tower.maxHp;
+      tower.nextAttackAt = 0;
+      tower.sprite.setAlpha(1);
+      this.updateTowerText(tower);
+    });
+    this.status = 'playing';
+    this.setMessageVisible(false);
+    this.updateHud(this.state.start());
+    this.showNotice('Opponent connected');
+    this.publishDevState();
+  }
+
+  private stopMultiplayerBattle(): void {
+    if (!this.multiplayer) {
+      return;
+    }
+
+    this.multiplayer = false;
+    this.showNotice('Opponent left');
+    this.finishBattle('won');
   }
 
   private tryDeploy(x: number, y: number): void {
@@ -239,15 +202,60 @@ export class GameScene extends Phaser.Scene {
   }
 
   private deploySelectedCard(x: number, y: number, directTargetId?: string): void {
-    const stats = CARD_STATS[this.selectedCard];
+    const stats = CARD_BY_ID[this.selectedCard];
     if (!this.state.canSpend(stats.cost)) {
       this.showNotice('Need more elixir');
       return;
     }
 
+    const card = this.selectedCard;
     this.state.spend(stats.cost);
-    this.spawnUnit('player', this.selectedCard, x, y, directTargetId);
+    this.spawnUnit('player', card, x, y, directTargetId);
+    if (this.multiplayer) {
+      window.dispatchEvent(new CustomEvent<NetworkDeployPayload>('crownfall:network-deploy-local', { detail: { card, x, y, directTargetId } }));
+    }
+    this.rotateUsedCard(card);
     this.updateHud(this.state.snapshot());
+  }
+
+  private deployRemoteCard(payload: NetworkDeployPayload): void {
+    if (!this.multiplayer || this.status !== 'playing' || !(payload.card in CARD_BY_ID)) {
+      return;
+    }
+
+    this.spawnUnit('enemy', payload.card, WORLD_WIDTH - payload.x, WORLD_HEIGHT - payload.y, this.mirrorTowerId(payload.directTargetId));
+  }
+
+  private mirrorTowerId(towerId?: string): string | undefined {
+    const mirrors: Record<string, string> = {
+      'enemy-left': 'player-right',
+      'enemy-right': 'player-left',
+      'enemy-king': 'player-king',
+      'player-left': 'enemy-right',
+      'player-right': 'enemy-left',
+      'player-king': 'enemy-king',
+    };
+    return towerId ? mirrors[towerId] : undefined;
+  }
+
+  private rotateUsedCard(card: CardId): void {
+    const hand = this.getVisibleHand();
+    const queue = this.activeDeck.slice(this.handSize);
+    const handIndex = hand.indexOf(card);
+    if (handIndex === -1) {
+      return;
+    }
+
+    const nextCard = queue.shift();
+    if (nextCard) {
+      hand[handIndex] = nextCard;
+      queue.push(card);
+    }
+
+    this.activeDeck = [...hand, ...queue];
+    this.selectedCard = nextCard ?? hand[0];
+    this.renderBattleDeck();
+    this.publishDevState();
   }
 
   private tryDeployFromCanvas(event: PointerEvent | MouseEvent): void {
@@ -273,23 +281,66 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
-    const options: CardId[] = ['vanguard', 'ranger', 'brute', 'spark'];
-    const affordable = options.filter((card) => this.state.canEnemySpend(CARD_STATS[card].cost));
+    const options = CARD_CATALOG.map((card) => card.id);
+    const affordable = options.filter((card) => this.state.canEnemySpend(CARD_BY_ID[card].cost));
     if (affordable.length > 0) {
       const card = Phaser.Utils.Array.GetRandom(affordable);
       const laneX = Phaser.Math.RND.pick([308, 480, 652]);
-      this.state.spendEnemy(CARD_STATS[card].cost);
+      this.state.spendEnemy(CARD_BY_ID[card].cost);
       this.spawnUnit('enemy', card, laneX + Phaser.Math.Between(-24, 24), Phaser.Math.Between(104, 210));
     }
 
     this.enemyPlanAt = time + Phaser.Math.Between(1600, 2800);
   }
 
+  private handleDevAction(action?: string): void {
+    switch (action) {
+      case 'start':
+      case 'reset':
+        this.startBattle();
+        break;
+      case 'elixir':
+        this.updateHud(this.state.addElixir(10));
+        break;
+      case 'enemy-elixir':
+        this.updateHud(this.state.addEnemyElixir(10));
+        break;
+      case 'infinite-elixir':
+        this.updateHud(this.state.setInfiniteElixir(!this.state.hasInfiniteElixir()));
+        break;
+      case 'spawn-player':
+        if (this.status !== 'playing') {
+          this.startBattle();
+        }
+        this.spawnUnit('player', this.selectedCard, WORLD_WIDTH / 2, WORLD_HEIGHT - 132);
+        break;
+      case 'spawn-enemy': {
+        if (this.status !== 'playing') {
+          this.startBattle();
+        }
+        const card = Phaser.Utils.Array.GetRandom(CARD_CATALOG.map((item) => item.id));
+        this.spawnUnit('enemy', card, WORLD_WIDTH / 2, 150);
+        break;
+      }
+      case 'clear-units':
+        this.clearUnits();
+        break;
+      case 'win':
+        if (this.status !== 'playing') {
+          this.startBattle();
+        }
+        this.finishBattle('won');
+        break;
+    }
+
+    this.publishDevState();
+  }
+
   private spawnUnit(side: Side, card: CardId, x: number, y: number, directTargetId?: string): void {
-    const stats = CARD_STATS[card];
-    const sprite = this.physics.add.sprite(x, y, side === 'player' ? stats.backTexture : stats.frontTexture);
+    const stats = CARD_BY_ID[card];
+    const sprite = this.physics.add.sprite(x, y, side === 'player' ? getCardBackTexture(card) : getCardFrontTexture(card));
     sprite.setDepth(5);
-    sprite.setTint(side === 'player' ? 0xffffff : 0xffa3a3);
+    sprite.setTint(side === 'player' ? 0xffffff : this.blendTint(0xffffff, 0xff7f7f, 0.18));
     sprite.setDisplaySize(stats.spriteSize, stats.spriteSize);
     sprite.setCircle(38, 26, 48);
     sprite.setCollideWorldBounds(true);
@@ -344,7 +395,7 @@ export class GameScene extends Phaser.Scene {
       }
 
       this.updateUnitAnimation(unit, time);
-      unit.hpBar.setPosition(unit.sprite.x, unit.sprite.y - CARD_STATS[unit.card].spriteSize * 0.34);
+      unit.hpBar.setPosition(unit.sprite.x, unit.sprite.y - CARD_BY_ID[unit.card].spriteSize * 0.34);
       unit.hpBar.width = Math.max(2, 40 * (unit.hp / unit.maxHp));
     });
   }
@@ -409,7 +460,7 @@ export class GameScene extends Phaser.Scene {
       return directTarget;
     }
 
-    const enemyTowers = this.getLegalTowerTargets(unit.side);
+    const enemyTowers = this.getLegalTowerTargets(unit);
     const candidates: Array<BattleUnit | Tower> = [...enemyUnits, ...enemyTowers];
 
     return candidates.sort((a, b) => {
@@ -422,14 +473,21 @@ export class GameScene extends Phaser.Scene {
     })[0];
   }
 
-  private getLegalTowerTargets(attackerSide: Side): Tower[] {
-    const enemySide = attackerSide === 'player' ? 'enemy' : 'player';
-    const sideTowers = this.towers.filter((tower) => tower.side === enemySide && tower.name === 'Outpost' && tower.hp > 0);
-    if (sideTowers.length > 0) {
-      return sideTowers;
+  private getLegalTowerTargets(unit: BattleUnit): Tower[] {
+    const enemySide = unit.side === 'player' ? 'enemy' : 'player';
+    const enemyTowers = this.towers.filter((tower) => tower.side === enemySide && tower.hp > 0);
+    const sideTowers = enemyTowers.filter((tower) => tower.name === 'Outpost');
+    const localSideTower = sideTowers.find((tower) => this.isSameLane(unit.sprite.x, tower.sprite.x));
+
+    if (localSideTower) {
+      return [localSideTower];
     }
 
-    return this.towers.filter((tower) => tower.side === enemySide && tower.hp > 0);
+    return enemyTowers;
+  }
+
+  private isSameLane(unitX: number, towerX: number): boolean {
+    return (unitX < WORLD_WIDTH / 2 && towerX < WORLD_WIDTH / 2) || (unitX >= WORLD_WIDTH / 2 && towerX >= WORLD_WIDTH / 2);
   }
 
   private findTowerTarget(tower: Tower): BattleUnit | undefined {
@@ -552,6 +610,13 @@ export class GameScene extends Phaser.Scene {
       button.textContent = 'Battle Again';
     }
     this.setMessageVisible(true);
+    this.publishDevState();
+    window.setTimeout(() => {
+      this.clearUnits();
+      this.setMessageVisible(false);
+      window.dispatchEvent(new CustomEvent('crownfall:navigate-home'));
+      this.publishDevState();
+    }, 1800);
   }
 
   private addArena(): void {
@@ -616,6 +681,17 @@ export class GameScene extends Phaser.Scene {
     tower.hpText.setText(String(Math.max(0, Math.ceil(tower.hp))));
   }
 
+  private blendTint(base: number, overlay: number, amount: number): number {
+    const baseColor = Phaser.Display.Color.ValueToColor(base);
+    const overlayColor = Phaser.Display.Color.ValueToColor(overlay);
+    const mix = (from: number, to: number) => Math.round(from + (to - from) * amount);
+    return Phaser.Display.Color.GetColor(
+      mix(baseColor.red, overlayColor.red),
+      mix(baseColor.green, overlayColor.green),
+      mix(baseColor.blue, overlayColor.blue),
+    );
+  }
+
   private getTargetPoint(target: BattleUnit | Tower): { x: number; y: number } {
     if ('sprite' in target) {
       return { x: target.sprite.x, y: target.sprite.y };
@@ -648,10 +724,36 @@ export class GameScene extends Phaser.Scene {
   }
 
   private wireDomControls(): void {
+    this.renderBattleDeck();
     document.getElementById('start-button')?.addEventListener('click', () => this.startBattle());
+    window.addEventListener('crownfall:deck-updated', () => {
+      this.activeDeck = getSavedDeck();
+      this.selectedCard = this.activeDeck.includes(this.selectedCard) ? this.selectedCard : this.activeDeck[0];
+      this.renderBattleDeck();
+      this.updateHud(this.state.snapshot());
+    });
+  }
+
+  private renderBattleDeck(): void {
+    const deck = document.getElementById('deck');
+    if (!deck) {
+      return;
+    }
+
+    deck.innerHTML = this.getVisibleHand()
+      .map((cardId) => {
+        const card = CARD_BY_ID[cardId];
+        return `<button class="card-button${cardId === this.selectedCard ? ' is-selected' : ''}" data-card="${card.id}" type="button">
+          <span class="card-art" aria-hidden="true"></span>
+          <span class="card-name">${card.name}</span>
+          <strong>${card.cost}</strong>
+        </button>`;
+      })
+      .join('');
+
     document.querySelectorAll<HTMLButtonElement>('.card-button').forEach((button) => {
       const cardForArt = button.dataset.card as CardId | undefined;
-      const art = cardForArt ? CARD_STATS[cardForArt].artUrl : undefined;
+      const art = cardForArt ? getCardFrontUrl(cardForArt) : undefined;
       const artNode = button.querySelector<HTMLElement>('.card-art');
       if (art && artNode) {
         artNode.style.backgroundImage = `url("${art}")`;
@@ -668,12 +770,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private handleKeyboard(event: KeyboardEvent): void {
-    const keyMap: Record<string, CardId> = {
-      '1': 'vanguard',
-      '2': 'ranger',
-      '3': 'brute',
-      '4': 'spark',
-    };
+    const keyMap = Object.fromEntries(this.getVisibleHand().map((card, index) => [String(index + 1), card])) as Record<string, CardId>;
     const card = keyMap[event.key];
     if (card) {
       this.selectCard(card);
@@ -687,6 +784,10 @@ export class GameScene extends Phaser.Scene {
   }
 
   private selectCard(card: CardId): void {
+    if (!this.getVisibleHand().includes(card)) {
+      return;
+    }
+
     this.selectedCard = card;
     document.querySelectorAll('.card-button').forEach((item) => {
       item.classList.toggle('is-selected', (item as HTMLButtonElement).dataset.card === card);
@@ -700,9 +801,13 @@ export class GameScene extends Phaser.Scene {
     document.querySelectorAll<HTMLButtonElement>('.card-button').forEach((button) => {
       const card = button.dataset.card as CardId | undefined;
       if (card) {
-        button.disabled = snapshot.status !== 'playing' || snapshot.elixir < CARD_STATS[card].cost;
+        button.disabled = snapshot.status !== 'playing' || snapshot.elixir < CARD_BY_ID[card].cost;
       }
     });
+  }
+
+  private getVisibleHand(): CardId[] {
+    return this.activeDeck.slice(0, this.handSize);
   }
 
   private formatTime(seconds: number): string {
@@ -717,6 +822,26 @@ export class GameScene extends Phaser.Scene {
       unit.hpBar.destroy();
     });
     this.units = [];
+    this.publishDevState();
+  }
+
+  private publishDevState(): void {
+    const towerSummary = this.towers
+      .map((tower) => `${tower.id}:${Math.max(0, Math.ceil(tower.hp))}`)
+      .join(' ');
+    window.dispatchEvent(
+      new CustomEvent('crownfall:dev-state', {
+        detail: {
+          status: this.status,
+          units: this.units.length,
+          hand: this.getVisibleHand()
+            .map((card) => CARD_BY_ID[card].name)
+            .join(', '),
+          towers: towerSummary || '-',
+          infiniteElixir: this.state.hasInfiniteElixir(),
+        },
+      }),
+    );
   }
 
   private showNotice(text: string): void {
