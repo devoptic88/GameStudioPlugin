@@ -13,7 +13,7 @@ import {
 } from '../data/cards';
 import { AudioDirector } from '../systems/audio';
 import { BattleSnapshot, BattleState, BattleStatus } from '../systems/gameState';
-import type { NetworkDeployPayload } from '../systems/network';
+import type { NetworkDeployPayload, NetworkSyncPayload } from '../systems/network';
 import arenaUrl from '../assets/environment/arena-epic.png';
 
 const WORLD_WIDTH = 960;
@@ -39,6 +39,7 @@ interface BattleUnit {
   nextAttackAt: number;
   movement: MovementType;
   directTargetId?: string;
+  networkId?: string;
   baseScaleX: number;
   baseScaleY: number;
   bobSeed: number;
@@ -70,6 +71,8 @@ export class GameScene extends Phaser.Scene {
   private towers: Tower[] = [];
   private audio = new AudioDirector();
   private nextUnitId = 1;
+  private nextNetworkUnitId = 1;
+  private nextPositionSyncAt = 0;
   private enemyPlanAt = 0;
   private notice?: Phaser.GameObjects.Text;
   private multiplayer = false;
@@ -100,6 +103,7 @@ export class GameScene extends Phaser.Scene {
     window.addEventListener('crownfall:network-deploy-remote', (event) =>
       this.deployRemoteCard((event as CustomEvent<NetworkDeployPayload>).detail),
     );
+    window.addEventListener('crownfall:network-sync-remote', (event) => this.applyRemoteSync((event as CustomEvent<NetworkSyncPayload>).detail));
     this.notice = this.add
       .text(WORLD_WIDTH / 2, RIVER_Y + 4, 'Deploy on your half', {
         color: '#f6f2e8',
@@ -126,6 +130,7 @@ export class GameScene extends Phaser.Scene {
       this.planEnemyDeploy(time);
     }
     this.updateUnits(time, deltaSeconds);
+    this.publishPositionSync(time);
     this.updateTowers(time);
     this.cleanupDefeated();
     this.checkBattleEnd(snapshot.status);
@@ -209,10 +214,11 @@ export class GameScene extends Phaser.Scene {
     }
 
     const card = this.selectedCard;
+    const unitId = this.createNetworkUnitId();
     this.state.spend(stats.cost);
-    this.spawnUnit('player', card, x, y, directTargetId);
+    this.spawnUnit('player', card, x, y, directTargetId, unitId);
     if (this.multiplayer) {
-      window.dispatchEvent(new CustomEvent<NetworkDeployPayload>('crownfall:network-deploy-local', { detail: { card, x, y, directTargetId } }));
+      window.dispatchEvent(new CustomEvent<NetworkDeployPayload>('crownfall:network-deploy-local', { detail: { unitId, card, x, y, directTargetId } }));
     }
     this.rotateUsedCard(card);
     this.updateHud(this.state.snapshot());
@@ -223,7 +229,13 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
-    this.spawnUnit('enemy', payload.card, WORLD_WIDTH - payload.x, WORLD_HEIGHT - payload.y, this.mirrorTowerId(payload.directTargetId));
+    this.spawnUnit('enemy', payload.card, WORLD_WIDTH - payload.x, WORLD_HEIGHT - payload.y, this.mirrorTowerId(payload.directTargetId), payload.unitId);
+  }
+
+  private createNetworkUnitId(): string {
+    const id = `unit-${Date.now()}-${this.nextNetworkUnitId}`;
+    this.nextNetworkUnitId += 1;
+    return id;
   }
 
   private mirrorTowerId(towerId?: string): string | undefined {
@@ -336,7 +348,7 @@ export class GameScene extends Phaser.Scene {
     this.publishDevState();
   }
 
-  private spawnUnit(side: Side, card: CardId, x: number, y: number, directTargetId?: string): void {
+  private spawnUnit(side: Side, card: CardId, x: number, y: number, directTargetId?: string, networkId?: string): void {
     const stats = CARD_BY_ID[card];
     const sprite = this.physics.add.sprite(x, y, side === 'player' ? getCardBackTexture(card) : getCardFrontTexture(card));
     sprite.setDepth(5);
@@ -359,6 +371,7 @@ export class GameScene extends Phaser.Scene {
       nextAttackAt: 0,
       movement: stats.movement,
       directTargetId,
+      networkId,
       baseScaleX: sprite.scaleX,
       baseScaleY: sprite.scaleY,
       bobSeed: Phaser.Math.FloatBetween(0, Math.PI * 2),
@@ -371,6 +384,11 @@ export class GameScene extends Phaser.Scene {
 
   private updateUnits(time: number, deltaSeconds: number): void {
     this.units.forEach((unit) => {
+      if (this.isNetworkControlledEnemy(unit)) {
+        this.updateNetworkControlledEnemy(unit, time);
+        return;
+      }
+
       const target = this.findNearestTarget(unit);
       if (!target) {
         unit.sprite.setVelocity(0, 0);
@@ -395,6 +413,67 @@ export class GameScene extends Phaser.Scene {
       }
 
       this.updateUnitAnimation(unit, time);
+      unit.hpBar.setPosition(unit.sprite.x, unit.sprite.y - CARD_BY_ID[unit.card].spriteSize * 0.34);
+      unit.hpBar.width = Math.max(2, 40 * (unit.hp / unit.maxHp));
+    });
+  }
+
+  private isNetworkControlledEnemy(unit: BattleUnit): boolean {
+    return this.multiplayer && unit.side === 'enemy' && Boolean(unit.networkId);
+  }
+
+  private updateNetworkControlledEnemy(unit: BattleUnit, time: number): void {
+    unit.sprite.setVelocity(0, 0);
+    const target = this.findNearestTarget(unit);
+    if (target) {
+      const targetPoint = this.getTargetPoint(target);
+      const attackDistance = Phaser.Math.Distance.Between(unit.sprite.x, unit.sprite.y, targetPoint.x, targetPoint.y);
+      if (attackDistance <= unit.range && time >= unit.nextAttackAt) {
+        this.damageTarget(target, unit.damage);
+        void this.audio.playHit(unit.card);
+        unit.nextAttackAt = time + unit.cooldown;
+        this.playAttackAnimation(unit, targetPoint);
+        this.showHit(unit.sprite.x, unit.sprite.y, unit.side);
+      }
+    }
+
+    this.updateUnitAnimation(unit, time);
+    unit.hpBar.setPosition(unit.sprite.x, unit.sprite.y - CARD_BY_ID[unit.card].spriteSize * 0.34);
+    unit.hpBar.width = Math.max(2, 40 * (unit.hp / unit.maxHp));
+  }
+
+  private publishPositionSync(time: number): void {
+    if (!this.multiplayer || time < this.nextPositionSyncAt) {
+      return;
+    }
+
+    const units = this.units
+      .filter((unit) => unit.side === 'player' && unit.networkId && unit.hp > 0)
+      .map((unit) => ({
+        unitId: unit.networkId!,
+        x: Math.round(unit.sprite.x * 10) / 10,
+        y: Math.round(unit.sprite.y * 10) / 10,
+        hp: Math.round(unit.hp * 10) / 10,
+      }));
+
+    window.dispatchEvent(new CustomEvent<NetworkSyncPayload>('crownfall:network-sync-local', { detail: { units } }));
+    this.nextPositionSyncAt = time + 80;
+  }
+
+  private applyRemoteSync(payload: NetworkSyncPayload): void {
+    if (!this.multiplayer) {
+      return;
+    }
+
+    payload.units.forEach((snapshot) => {
+      const unit = this.units.find((candidate) => candidate.side === 'enemy' && candidate.networkId === snapshot.unitId);
+      if (!unit) {
+        return;
+      }
+
+      unit.hp = snapshot.hp;
+      unit.sprite.setPosition(WORLD_WIDTH - snapshot.x, WORLD_HEIGHT - snapshot.y);
+      unit.sprite.setVelocity(0, 0);
       unit.hpBar.setPosition(unit.sprite.x, unit.sprite.y - CARD_BY_ID[unit.card].spriteSize * 0.34);
       unit.hpBar.width = Math.max(2, 40 * (unit.hp / unit.maxHp));
     });
