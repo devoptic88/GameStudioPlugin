@@ -1,10 +1,22 @@
 import type { CardId } from '../data/cards';
 
 export interface NetworkDeployPayload {
+  unitId: string;
   card: CardId;
   x: number;
   y: number;
   directTargetId?: string;
+}
+
+export interface NetworkUnitSnapshot {
+  unitId: string;
+  x: number;
+  y: number;
+  hp: number;
+}
+
+export interface NetworkSyncPayload {
+  units: NetworkUnitSnapshot[];
 }
 
 type ServerMessage =
@@ -12,7 +24,8 @@ type ServerMessage =
   | { type: 'waiting' }
   | { type: 'match-found'; player: 1 | 2; matchId: string }
   | { type: 'opponent-left' }
-  | ({ type: 'deploy' } & NetworkDeployPayload);
+  | ({ type: 'deploy' } & NetworkDeployPayload)
+  | ({ type: 'sync' } & NetworkSyncPayload);
 
 export class NetworkClient {
   private socket?: WebSocket;
@@ -57,11 +70,19 @@ export class NetworkClient {
   }
 
   sendDeploy(payload: NetworkDeployPayload): void {
+    this.sendOnlineMessage({ type: 'deploy', ...payload });
+  }
+
+  sendSync(payload: NetworkSyncPayload): void {
+    this.sendOnlineMessage({ type: 'sync', ...payload });
+  }
+
+  private sendOnlineMessage(message: ServerMessage): void {
     if (!this.online || this.socket?.readyState !== WebSocket.OPEN) {
       return;
     }
 
-    this.socket.send(JSON.stringify({ type: 'deploy', ...payload }));
+    this.socket.send(JSON.stringify(message));
   }
 
   private joinQueue(): void {
@@ -95,6 +116,9 @@ export class NetworkClient {
         break;
       case 'deploy':
         window.dispatchEvent(new CustomEvent<NetworkDeployPayload>('crownfall:network-deploy-remote', { detail: message }));
+        break;
+      case 'sync':
+        window.dispatchEvent(new CustomEvent<NetworkSyncPayload>('crownfall:network-sync-remote', { detail: message }));
         break;
     }
   }

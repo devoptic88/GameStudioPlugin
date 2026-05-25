@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { CARD_BY_ID, CARD_CATALOG, getCardFrontUrl, getSavedDeck, saveDeck, type CardId } from './data/cards';
 import { GameScene } from './scenes/GameScene';
-import { NetworkClient, type NetworkDeployPayload } from './systems/network';
+import { NetworkClient, type NetworkDeployPayload, type NetworkSyncPayload } from './systems/network';
 import './styles.css';
 
 let deckDraft = getSavedDeck();
@@ -167,6 +167,9 @@ function wireShell(): void {
   });
   window.addEventListener('crownfall:network-deploy-local', (event) => {
     network.sendDeploy((event as CustomEvent<NetworkDeployPayload>).detail);
+  });
+  window.addEventListener('crownfall:network-sync-local', (event) => {
+    network.sendSync((event as CustomEvent<NetworkSyncPayload>).detail);
   });
 }
 
