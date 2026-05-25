@@ -6,9 +6,10 @@
     <title>Crownfall Tactics</title>
   </head>
   <body>
-    <div id="app">
+    <div id="app" data-view="home">
       <div id="game-root"></div>
-      <section id="hud" aria-label="Battle status">
+
+      <section id="hud" class="battle-ui" aria-label="Battle status">
         <div class="hud-group">
           <span class="hud-label">Elixir</span>
           <strong id="elixir">5</strong>
@@ -22,34 +23,142 @@
           <strong id="enemy-elixir">5</strong>
         </div>
       </section>
-      <section id="deck" aria-label="Battle deck">
-        <button class="card-button is-selected" data-card="vanguard" type="button">
-          <span class="card-art" aria-hidden="true"></span>
-          <span>Vanguard</span>
-          <strong>3</strong>
-        </button>
-        <button class="card-button" data-card="ranger" type="button">
-          <span class="card-art" aria-hidden="true"></span>
-          <span>Ranger</span>
-          <strong>4</strong>
-        </button>
-        <button class="card-button" data-card="brute" type="button">
-          <span class="card-art" aria-hidden="true"></span>
-          <span>Brute</span>
-          <strong>5</strong>
-        </button>
-        <button class="card-button" data-card="spark" type="button">
-          <span class="card-art" aria-hidden="true"></span>
-          <span>Spark</span>
-          <strong>2</strong>
-        </button>
-      </section>
-      <div id="message" role="status" aria-live="polite">
+
+      <section id="deck" class="battle-ui" aria-label="Battle deck"></section>
+
+      <button id="dev-toggle" class="dev-toggle" type="button">Dev</button>
+      <aside id="dev-panel" class="dev-panel" aria-label="Developer tools" aria-hidden="true">
+        <header>
+          <strong>Dev Tools</strong>
+          <button id="dev-close" type="button">Close</button>
+        </header>
+        <dl class="dev-readout">
+          <div>
+            <dt>Status</dt>
+            <dd id="dev-status">ready</dd>
+          </div>
+          <div>
+            <dt>Units</dt>
+            <dd id="dev-units">0</dd>
+          </div>
+          <div>
+            <dt>Hand</dt>
+            <dd id="dev-hand">-</dd>
+          </div>
+          <div>
+            <dt>Towers</dt>
+            <dd id="dev-towers">-</dd>
+          </div>
+        </dl>
+        <div class="dev-actions">
+          <button data-dev-action="start" type="button">Start</button>
+          <button data-dev-action="reset" type="button">Reset</button>
+          <button id="dev-inf-elixir" data-dev-action="infinite-elixir" type="button">Inf Elixir: Off</button>
+          <button data-dev-action="elixir" type="button">+ Elixir</button>
+          <button data-dev-action="enemy-elixir" type="button">+ Enemy</button>
+          <button data-dev-action="spawn-player" type="button">Spawn Player</button>
+          <button data-dev-action="spawn-enemy" type="button">Spawn Enemy</button>
+          <button data-dev-action="clear-units" type="button">Clear Units</button>
+          <button data-dev-action="win" type="button">Win</button>
+        </div>
+      </aside>
+
+      <div id="message" class="battle-ui" role="status" aria-live="polite">
         <h1>Crownfall Tactics</h1>
         <p>Pick a card, deploy on your half, and crack the rival citadel before time expires.</p>
         <button id="start-button" type="button">Start Battle</button>
       </div>
+
+      <main id="home-screen" class="screen-panel" aria-label="Home screen">
+        <header class="lobby-topbar" aria-label="Player status">
+          <div class="player-badge">
+            <span class="player-crest" aria-hidden="true">CT</span>
+            <div>
+              <strong>Commander</strong>
+              <span>Level 7</span>
+            </div>
+          </div>
+          <div class="resource-strip" aria-label="Resources">
+            <span><b>2840</b> Trophies</span>
+            <span><b>1280</b> Gold</span>
+            <span><b>64</b> Gems</span>
+          </div>
+        </header>
+
+        <section class="lobby-stage" aria-label="Battle lobby">
+          <div class="arena-card">
+            <span class="eyebrow">Arena 4</span>
+            <h1>Crownfall Tactics</h1>
+            <div class="arena-emblem" aria-hidden="true">
+              <span></span>
+            </div>
+            <p>Bridge control decides the crown.</p>
+          </div>
+          <div class="battle-actions">
+            <button id="quick-play-button" class="primary-action battle-button" type="button">Battle</button>
+            <button id="online-play-button" class="primary-action online-button" type="button">Online Battle</button>
+            <button class="secondary-action deck-button" data-view-target="deckbuilder" type="button">Cards</button>
+            <span id="online-status" class="online-status">Offline</span>
+          </div>
+        </section>
+
+        <section class="reward-row" aria-label="Chest slots">
+          <button type="button">
+            <span class="chest-icon silver" aria-hidden="true"></span>
+            <strong>Silver Chest</strong>
+            <small>3h</small>
+          </button>
+          <button type="button">
+            <span class="chest-icon gold" aria-hidden="true"></span>
+            <strong>Gold Chest</strong>
+            <small>8h</small>
+          </button>
+          <button type="button">
+            <span class="chest-icon crystal" aria-hidden="true"></span>
+            <strong>Crown Chest</strong>
+            <small>Ready</small>
+          </button>
+        </section>
+
+        <section class="home-deck-shell" aria-label="Current battle deck">
+          <div>
+            <span class="eyebrow">Battle Deck</span>
+            <button class="secondary-action mini-action" data-view-target="deckbuilder" type="button">Edit</button>
+          </div>
+          <div id="home-deck-preview" class="deck-preview" aria-label="Current deck"></div>
+        </section>
+      </main>
+
+      <main id="deck-builder-screen" class="screen-panel" aria-label="Deck builder">
+        <header class="builder-header">
+          <div>
+            <span class="eyebrow">Cards</span>
+            <h1>Deck Builder</h1>
+          </div>
+          <div class="builder-actions">
+            <button class="secondary-action" data-view-target="home" type="button">Home</button>
+            <button id="save-deck-button" class="primary-action" type="button">Save Deck</button>
+          </div>
+        </header>
+        <div class="builder-layout">
+          <section class="selected-deck-shell" aria-label="Selected deck">
+            <div>
+              <span class="eyebrow">Battle Deck</span>
+              <strong id="deck-count">8 / 8</strong>
+            </div>
+            <div id="selected-deck-list" class="selected-deck-list"></div>
+          </section>
+          <section class="collection-shell" aria-label="Card collection">
+            <div>
+              <span class="eyebrow">Collection</span>
+              <strong>24 Cards</strong>
+            </div>
+            <section id="card-collection" class="card-collection" aria-label="Card collection"></section>
+          </section>
+        </div>
+      </main>
     </div>
+
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>
