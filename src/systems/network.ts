@@ -25,8 +25,18 @@ export class NetworkClient {
     }
 
     const url = import.meta.env.VITE_MULTIPLAYER_URL ?? this.defaultServerUrl();
+    if (window.location.protocol === 'https:' && url.startsWith('ws://')) {
+      this.setStatus('Needs wss:// server');
+      return;
+    }
+
     this.setStatus('Connecting...');
-    this.socket = new WebSocket(url);
+    try {
+      this.socket = new WebSocket(url);
+    } catch {
+      this.setStatus('Connection failed');
+      return;
+    }
 
     this.socket.addEventListener('open', () => this.joinQueue());
     this.socket.addEventListener('message', (event) => this.handleMessage(event.data));
@@ -71,7 +81,7 @@ export class NetworkClient {
         this.setStatus('Connected');
         break;
       case 'waiting':
-        this.setStatus('Waiting for opponent');
+        this.setStatus('Waiting for opponent - open another browser');
         break;
       case 'match-found':
         this.online = true;
