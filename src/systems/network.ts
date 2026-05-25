@@ -24,8 +24,7 @@ export class NetworkClient {
       return;
     }
 
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const url = `${protocol}//${window.location.hostname}:8787`;
+    const url = import.meta.env.VITE_MULTIPLAYER_URL ?? this.defaultServerUrl();
     this.setStatus('Connecting...');
     this.socket = new WebSocket(url);
 
@@ -58,6 +57,11 @@ export class NetworkClient {
   private joinQueue(): void {
     this.socket?.send(JSON.stringify({ type: 'join' }));
     this.setStatus('Finding opponent...');
+  }
+
+  private defaultServerUrl(): string {
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    return `${protocol}//${window.location.hostname}:8787`;
   }
 
   private handleMessage(raw: string): void {
