@@ -117,6 +117,48 @@ export class AudioDirector {
     });
   }
 
+  async playProjectile(card: CardId): Promise<void> {
+    await this.ensureContext();
+    if (!this.context || !this.effectsBus) {
+      return;
+    }
+
+    const archetype = CARD_BY_ID[card].archetype;
+    const now = this.context.currentTime;
+    const frequency = archetype === 'spark' ? 980 : archetype === 'ranger' ? 720 : archetype === 'brute' ? 120 : 360;
+    this.playTone({
+      frequency,
+      startTime: now,
+      duration: archetype === 'spark' ? 0.16 : 0.1,
+      volume: 0.055,
+      type: archetype === 'spark' ? 'sine' : 'triangle',
+      destination: this.effectsBus,
+      endFrequency: archetype === 'spark' ? frequency * 1.4 : frequency * 0.66,
+    });
+  }
+
+  async playExplosion(kind: 'burst' | 'electric' | 'slam' | 'slash'): Promise<void> {
+    await this.ensureContext();
+    if (!this.context || !this.effectsBus) {
+      return;
+    }
+
+    const now = this.context.currentTime;
+    if (kind === 'electric') {
+      this.playTone({ frequency: 1180, startTime: now, duration: 0.08, volume: 0.075, type: 'sine', destination: this.effectsBus, endFrequency: 1620 });
+      this.playNoise(now, 0.08, 0.035, 2400);
+      return;
+    }
+
+    if (kind === 'slam') {
+      this.playTone({ frequency: 72, startTime: now, duration: 0.22, volume: 0.15, type: 'sawtooth', destination: this.effectsBus, endFrequency: 42 });
+      this.playNoise(now, 0.24, 0.12, 420);
+      return;
+    }
+
+    this.playNoise(now, kind === 'slash' ? 0.08 : 0.14, kind === 'slash' ? 0.04 : 0.075, kind === 'slash' ? 1800 : 780);
+  }
+
   private async ensureContext(): Promise<void> {
     if (!this.context) {
       this.context = new AudioContext();

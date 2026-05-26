@@ -14,7 +14,13 @@ import {
 import { AudioDirector } from '../systems/audio';
 import { BattleSnapshot, BattleState, BattleStatus } from '../systems/gameState';
 import type { NetworkDeployPayload, NetworkSyncPayload } from '../systems/network';
+import { getProgression } from '../systems/progression';
 import arenaUrl from '../assets/environment/arena-epic.png';
+import enemyCitadelUrl from '../assets/towers/enemy-citadel.svg';
+import enemyOutpostUrl from '../assets/towers/enemy-outpost.svg';
+import playerCitadelUrl from '../assets/towers/player-citadel.svg';
+import playerOutpostUrl from '../assets/towers/player-outpost.svg';
+import combatVfxUrl from '../assets/effects/combat-vfx-sheet.png';
 
 const WORLD_WIDTH = 960;
 const WORLD_HEIGHT = 540;
@@ -57,7 +63,7 @@ interface Tower {
   damage: number;
   cooldown: number;
   nextAttackAt: number;
-  sprite: Phaser.GameObjects.Rectangle;
+  sprite: Phaser.GameObjects.Image;
   hpText: Phaser.GameObjects.Text;
 }
 
@@ -83,6 +89,11 @@ export class GameScene extends Phaser.Scene {
 
   preload(): void {
     this.load.image('arena-epic', arenaUrl);
+    this.load.image('tower-player-outpost', playerOutpostUrl);
+    this.load.image('tower-player-citadel', playerCitadelUrl);
+    this.load.image('tower-enemy-outpost', enemyOutpostUrl);
+    this.load.image('tower-enemy-citadel', enemyCitadelUrl);
+    this.load.spritesheet('combat-vfx', combatVfxUrl, { frameWidth: 512, frameHeight: 512 });
     CARD_CATALOG.forEach((card) => {
       this.load.image(getCardFrontTexture(card.id), getCardFrontUrl(card.id));
       this.load.image(getCardBackTexture(card.id), getCardBackUrl(card.id));
@@ -350,6 +361,10 @@ export class GameScene extends Phaser.Scene {
 
   private spawnUnit(side: Side, card: CardId, x: number, y: number, directTargetId?: string, networkId?: string): void {
     const stats = CARD_BY_ID[card];
+    const cardLevel = getProgression().cards[card]?.level ?? 1;
+    const levelMultiplier = 1 + (cardLevel - 1) * 0.1;
+    const hp = Math.round(stats.hp * levelMultiplier);
+    const damage = Math.round(stats.damage * levelMultiplier);
     const sprite = this.physics.add.sprite(x, y, side === 'player' ? getCardBackTexture(card) : getCardFrontTexture(card));
     sprite.setDepth(5);
     sprite.setTint(side === 'player' ? 0xffffff : this.blendTint(0xffffff, 0xff7f7f, 0.18));
@@ -362,9 +377,9 @@ export class GameScene extends Phaser.Scene {
       id: this.nextUnitId,
       side,
       card,
-      hp: stats.hp,
-      maxHp: stats.hp,
-      damage: stats.damage,
+      hp,
+      maxHp: hp,
+      damage,
       range: stats.range,
       speed: stats.speed,
       cooldown: stats.cooldown,
@@ -401,11 +416,8 @@ export class GameScene extends Phaser.Scene {
       if (attackDistance <= unit.range) {
         unit.sprite.setVelocity(0, 0);
         if (time >= unit.nextAttackAt) {
-          this.damageTarget(target, unit.damage);
-          void this.audio.playHit(unit.card);
           unit.nextAttackAt = time + unit.cooldown;
-          this.playAttackAnimation(unit, actualTargetPoint);
-          this.showHit(unit.sprite.x, unit.sprite.y, unit.side);
+          this.resolveUnitAttack(unit, target, actualTargetPoint);
         }
       } else {
         const angle = Phaser.Math.Angle.Between(unit.sprite.x, unit.sprite.y, movementPoint.x, movementPoint.y);
@@ -429,11 +441,8 @@ export class GameScene extends Phaser.Scene {
       const targetPoint = this.getTargetPoint(target);
       const attackDistance = Phaser.Math.Distance.Between(unit.sprite.x, unit.sprite.y, targetPoint.x, targetPoint.y);
       if (attackDistance <= unit.range && time >= unit.nextAttackAt) {
-        this.damageTarget(target, unit.damage);
-        void this.audio.playHit(unit.card);
         unit.nextAttackAt = time + unit.cooldown;
-        this.playAttackAnimation(unit, targetPoint);
-        this.showHit(unit.sprite.x, unit.sprite.y, unit.side);
+        this.resolveUnitAttack(unit, target, targetPoint);
       }
     }
 
@@ -514,6 +523,44 @@ export class GameScene extends Phaser.Scene {
     });
   }
 
+  private resolveUnitAttack(unit: BattleUnit, target: BattleUnit | Tower, targetPoint: { x: number; y: number }): void {
+    this.playAttackAnimation(unit, targetPoint);
+    const card = CARD_BY_ID[unit.card];
+    if (card.range > 72 || card.movement === 'flying') {
+      this.addUnitProjectile(unit, target, targetPoint);
+      void this.audio.playProjectile(unit.card);
+      return;
+    }
+
+    this.damageTarget(target, unit.damage);
+    void this.audio.playHit(unit.card);
+    this.showHit(targetPoint.x, targetPoint.y, unit.side, card.archetype === 'brute' ? 'slam' : 'slash');
+  }
+
+  private addUnitProjectile(unit: BattleUnit, target: BattleUnit | Tower, targetPoint: { x: number; y: number }): void {
+    const card = CARD_BY_ID[unit.card];
+    const frame = card.archetype === 'spark' ? 2 : card.archetype === 'brute' ? 1 : 0;
+    const impact = card.archetype === 'spark' ? 'electric' : 'burst';
+    const shot = this.add.image(unit.sprite.x, unit.sprite.y, 'combat-vfx', frame).setDepth(9);
+    const angle = Phaser.Math.Angle.Between(unit.sprite.x, unit.sprite.y, targetPoint.x, targetPoint.y);
+    shot.setDisplaySize(card.archetype === 'spark' ? 34 : 42, card.archetype === 'spark' ? 34 : 42);
+    shot.setRotation(angle);
+    this.tweens.add({
+      targets: shot,
+      x: targetPoint.x,
+      y: targetPoint.y,
+      scale: 0.18,
+      duration: card.archetype === 'spark' ? 190 : 240,
+      ease: 'Quad.easeIn',
+      onComplete: () => {
+        shot.destroy();
+        this.damageTarget(target, unit.damage);
+        void this.audio.playHit(unit.card);
+        this.showHit(targetPoint.x, targetPoint.y, unit.side, impact);
+      },
+    });
+  }
+
   private updateTowers(time: number): void {
     this.towers
       .filter((tower) => tower.hp > 0)
@@ -526,6 +573,7 @@ export class GameScene extends Phaser.Scene {
         target.hp -= tower.damage;
         tower.nextAttackAt = time + tower.cooldown;
         void this.audio.playTowerShot();
+        void this.audio.playProjectile('vanguard');
         this.addProjectile(tower.sprite.x, tower.sprite.y, target.sprite.x, target.sprite.y, tower.side);
       });
   }
@@ -690,6 +738,7 @@ export class GameScene extends Phaser.Scene {
     }
     this.setMessageVisible(true);
     this.publishDevState();
+    window.dispatchEvent(new CustomEvent('crownfall:battle-result', { detail: result }));
     window.setTimeout(() => {
       this.clearUnits();
       this.setMessageVisible(false);
@@ -729,9 +778,8 @@ export class GameScene extends Phaser.Scene {
   }
 
   private createTower(id: string, side: Side, name: string, x: number, y: number, hp: number): Tower {
-    const color = side === 'player' ? 0x3b8fca : 0xb94d5d;
-    const sprite = this.add.rectangle(x, y, name === 'Citadel' ? 62 : 48, name === 'Citadel' ? 62 : 48, color);
-    sprite.setStrokeStyle(3, 0xf6f2e8, 0.72).setDepth(3);
+    const sprite = this.add.image(x, y, this.getTowerTexture(side, name));
+    sprite.setDisplaySize(name === 'Citadel' ? 92 : 74, name === 'Citadel' ? 92 : 74).setDepth(3);
     const hpText = this.add
       .text(x, y + 42, String(hp), {
         color: '#ffffff',
@@ -754,6 +802,11 @@ export class GameScene extends Phaser.Scene {
       sprite,
       hpText,
     };
+  }
+
+  private getTowerTexture(side: Side, name: string): string {
+    const towerKind = name === 'Citadel' ? 'citadel' : 'outpost';
+    return `tower-${side}-${towerKind}`;
   }
 
   private updateTowerText(tower: Tower): void {
@@ -780,24 +833,35 @@ export class GameScene extends Phaser.Scene {
   }
 
   private addProjectile(fromX: number, fromY: number, toX: number, toY: number, side: Side): void {
-    const shot = this.add.circle(fromX, fromY, 5, side === 'player' ? 0x7cd3ff : 0xffb3b3).setDepth(9);
+    const shot = this.add.image(fromX, fromY, 'combat-vfx', 1).setDepth(9);
+    shot.setDisplaySize(34, 34);
+    shot.setTint(side === 'player' ? 0xbbefff : 0xffb3b3);
+    shot.setRotation(Phaser.Math.Angle.Between(fromX, fromY, toX, toY));
     this.tweens.add({
       targets: shot,
       x: toX,
       y: toY,
-      alpha: 0.2,
+      scale: 0.16,
       duration: 170,
-      onComplete: () => shot.destroy(),
+      onComplete: () => {
+        shot.destroy();
+        this.showHit(toX, toY, side, 'burst');
+      },
     });
   }
 
-  private showHit(x: number, y: number, side: Side): void {
-    const burst = this.add.circle(x, y, 12, side === 'player' ? 0x7cd3ff : 0xff7676, 0.45).setDepth(8);
+  private showHit(x: number, y: number, side: Side, kind: 'burst' | 'electric' | 'slam' | 'slash' = 'burst'): void {
+    const frame = kind === 'electric' ? 4 : kind === 'slam' ? 5 : kind === 'slash' ? 3 : 3;
+    const burst = this.add.image(x, y, 'combat-vfx', frame).setDepth(8);
+    burst.setDisplaySize(kind === 'slam' ? 92 : 68, kind === 'slam' ? 92 : 68);
+    burst.setTint(side === 'player' ? 0xffffff : 0xffc7c7);
+    void this.audio.playExplosion(kind);
     this.tweens.add({
       targets: burst,
-      scale: 1.8,
+      scale: kind === 'slam' ? 0.32 : 0.24,
       alpha: 0,
-      duration: 180,
+      angle: Phaser.Math.Between(-18, 18),
+      duration: kind === 'slam' ? 260 : 190,
       onComplete: () => burst.destroy(),
     });
   }
@@ -823,7 +887,7 @@ export class GameScene extends Phaser.Scene {
       .map((cardId) => {
         const card = CARD_BY_ID[cardId];
         return `<button class="card-button${cardId === this.selectedCard ? ' is-selected' : ''}" data-card="${card.id}" type="button">
-          <span class="card-art" aria-hidden="true"></span>
+          <span class="card-art" style="background-image: url('${getCardFrontUrl(cardId)}')" aria-hidden="true"></span>
           <span class="card-name">${card.name}</span>
           <strong>${card.cost}</strong>
         </button>`;
@@ -831,13 +895,6 @@ export class GameScene extends Phaser.Scene {
       .join('');
 
     document.querySelectorAll<HTMLButtonElement>('.card-button').forEach((button) => {
-      const cardForArt = button.dataset.card as CardId | undefined;
-      const art = cardForArt ? getCardFrontUrl(cardForArt) : undefined;
-      const artNode = button.querySelector<HTMLElement>('.card-art');
-      if (art && artNode) {
-        artNode.style.backgroundImage = `url("${art}")`;
-      }
-
       button.addEventListener('click', () => {
         const card = button.dataset.card as CardId | undefined;
         if (!card) {

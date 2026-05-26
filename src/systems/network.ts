@@ -22,6 +22,7 @@ export interface NetworkSyncPayload {
 type ServerMessage =
   | { type: 'connected' }
   | { type: 'waiting' }
+  | { type: 'search-timeout' }
   | { type: 'match-found'; player: 1 | 2; matchId: string }
   | { type: 'opponent-left' }
   | ({ type: 'deploy' } & NetworkDeployPayload)
@@ -110,6 +111,10 @@ export class NetworkClient {
         break;
       case 'waiting':
         this.setStatus('Waiting for opponent - open another browser');
+        break;
+      case 'search-timeout':
+        this.online = false;
+        this.setStatus('No opponent found - try again');
         break;
       case 'match-found':
         this.online = true;

@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="224" height="224" viewBox="0 0 224 224">
+  <defs>
+    <linearGradient id="stone" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0" stop-color="#f5fbff"/>
+      <stop offset="0.52" stop-color="#a9bfd6"/>
+      <stop offset="1" stop-color="#4d6279"/>
+    </linearGradient>
+    <linearGradient id="blue" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0" stop-color="#8be8ff"/>
+      <stop offset="1" stop-color="#1657d0"/>
+    </linearGradient>
+    <linearGradient id="gold" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0" stop-color="#fff29b"/>
+      <stop offset="1" stop-color="#e99b20"/>
+    </linearGradient>
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="170%">
+      <feDropShadow dx="0" dy="12" stdDeviation="9" flood-color="#061425" flood-opacity=".48"/>
+    </filter>
+  </defs>
+  <g filter="url(#shadow)">
+    <ellipse cx="112" cy="187" rx="68" ry="18" fill="#07111f" opacity=".34"/>
+    <path d="M55 166h114l-11 26H66z" fill="#31465f"/>
+    <path d="M72 70h80l10 96H62z" fill="url(#stone)"/>
+    <path d="M85 38h54v42H85z" fill="url(#stone)"/>
+    <path d="M76 34h16v24H76zm28 0h16v24h-16zm28 0h16v24h-16z" fill="#e5f2ff"/>
+    <path d="M95 18h34l-8 22h-18z" fill="url(#gold)"/>
+    <path d="M88 92h48v30H88z" fill="#22344c"/>
+    <path d="M95 98h34v24H95z" fill="url(#blue)"/>
+    <path d="M104 128h17c10 0 18 8 18 18v20H86v-20c0-10 8-18 18-18z" fill="#213149"/>
+    <path d="M67 104c-17 4-27 14-30 31l24 7z" fill="url(#blue)"/>
+    <path d="M157 104c17 4 27 14 30 31l-24 7z" fill="url(#blue)"/>
+    <path d="M112 24v58" stroke="#ffe177" stroke-width="6" stroke-linecap="round"/>
+    <path d="M116 28c23 4 36 12 48 26-16 2-29 8-48 1z" fill="url(#blue)"/>
+    <path d="M62 166h100" stroke="#f8fdff" stroke-width="5" opacity=".62"/>
+    <path d="M75 76h74" stroke="#ffffff" stroke-width="6" opacity=".4"/>
+  </g>
+</svg>

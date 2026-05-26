@@ -75,13 +75,14 @@
             <span class="player-crest" aria-hidden="true">CT</span>
             <div>
               <strong>Commander</strong>
-              <span>Level 7</span>
+              <span id="player-level">Level 7</span>
+              <small id="player-xp" class="player-xp">140 / 808 XP</small>
             </div>
           </div>
           <div class="resource-strip" aria-label="Resources">
-            <span><b>2840</b> Trophies</span>
-            <span><b>1280</b> Gold</span>
-            <span><b>64</b> Gems</span>
+            <span><b id="trophies-count">2840</b> Trophies</span>
+            <span><b id="gold-count">1800</b> Gold</span>
+            <span><b id="gems-count">64</b> Gems</span>
           </div>
         </header>
 
@@ -98,27 +99,12 @@
             <button id="quick-play-button" class="primary-action battle-button" type="button">Battle</button>
             <button id="online-play-button" class="primary-action online-button" type="button">Online Battle</button>
             <button class="secondary-action deck-button" data-view-target="deckbuilder" type="button">Cards</button>
+            <button class="secondary-action deck-button" data-view-target="shop" type="button">Shop</button>
             <span id="online-status" class="online-status">Offline</span>
           </div>
         </section>
 
-        <section class="reward-row" aria-label="Chest slots">
-          <button type="button">
-            <span class="chest-icon silver" aria-hidden="true"></span>
-            <strong>Silver Chest</strong>
-            <small>3h</small>
-          </button>
-          <button type="button">
-            <span class="chest-icon gold" aria-hidden="true"></span>
-            <strong>Gold Chest</strong>
-            <small>8h</small>
-          </button>
-          <button type="button">
-            <span class="chest-icon crystal" aria-hidden="true"></span>
-            <strong>Crown Chest</strong>
-            <small>Ready</small>
-          </button>
-        </section>
+        <section id="chest-row" class="reward-row" aria-label="Chest slots"></section>
 
         <section class="home-deck-shell" aria-label="Current battle deck">
           <div>
@@ -146,17 +132,66 @@
               <span class="eyebrow">Battle Deck</span>
               <strong id="deck-count">8 / 8</strong>
             </div>
+            <div id="loadout-tabs" class="loadout-tabs" aria-label="Saved loadouts"></div>
             <div id="selected-deck-list" class="selected-deck-list"></div>
           </section>
           <section class="collection-shell" aria-label="Card collection">
             <div>
               <span class="eyebrow">Collection</span>
-              <strong>24 Cards</strong>
+              <strong id="collection-count">24 Cards</strong>
             </div>
             <section id="card-collection" class="card-collection" aria-label="Card collection"></section>
           </section>
         </div>
       </main>
+
+      <main id="shop-screen" class="screen-panel" aria-label="Shop">
+        <header class="builder-header">
+          <div>
+            <span class="eyebrow">Daily Shop</span>
+            <h1>Shop</h1>
+          </div>
+          <div class="builder-actions">
+            <button class="secondary-action" data-view-target="home" type="button">Home</button>
+            <button class="secondary-action" data-view-target="deckbuilder" type="button">Cards</button>
+          </div>
+        </header>
+        <section class="shop-hero" aria-label="Shop balance">
+          <div>
+            <span class="eyebrow">Gold Offers</span>
+            <strong>Unlock cards and buy copies</strong>
+          </div>
+          <p>Locked cards cost more the first time. Owned cards sell bundles of copies for upgrades.</p>
+        </section>
+        <section id="shop-list" class="shop-list" aria-label="Shop offers"></section>
+      </main>
+
+      <section id="chest-reveal" class="modal-layer" aria-hidden="true" aria-label="Chest rewards">
+        <div class="chest-reveal-card">
+          <button class="modal-close" data-modal-close="chest" type="button">Close</button>
+          <span id="chest-reveal-kicker" class="eyebrow">Chest Opened</span>
+          <h2 id="chest-reveal-title">Reward</h2>
+          <div id="chest-reveal-image" class="reward-image" aria-hidden="true"></div>
+          <strong id="chest-reveal-amount">+0</strong>
+          <p id="chest-reveal-copy">Tap next to reveal the next reward.</p>
+          <button id="chest-next-button" class="primary-action" type="button">Next</button>
+        </div>
+      </section>
+
+      <section id="card-info-modal" class="modal-layer" aria-hidden="true" aria-label="Card information">
+        <div class="card-info-window">
+          <button class="modal-close" data-modal-close="card" type="button">Close</button>
+          <div id="card-info-art" class="card-info-art" aria-hidden="true"></div>
+          <div class="card-info-body">
+            <span id="card-info-role" class="eyebrow">Card</span>
+            <h2 id="card-info-name">Card</h2>
+            <p id="card-info-description"></p>
+            <dl id="card-info-stats" class="card-info-stats"></dl>
+          </div>
+        </div>
+      </section>
+
+      <div id="reward-toast" class="reward-toast" role="status" aria-live="polite"></div>
     </div>
 
     <script type="module" src="/src/main.ts"></script>
